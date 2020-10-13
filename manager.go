@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PowerDNS/go-tlsconfig/filewatcher"
 	"github.com/go-logr/logr"
 	logrtesting "github.com/go-logr/logr/testing"
-	"github.com/wojas/go-tlsconfig/filewatcher"
 )
 
 // Options configure how the Manager works and performs Config validation

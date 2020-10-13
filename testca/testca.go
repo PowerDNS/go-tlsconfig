@@ -11,7 +11,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/wojas/go-tlsconfig"
+	"github.com/PowerDNS/go-tlsconfig"
 )
 
 // Options are options for the test CA

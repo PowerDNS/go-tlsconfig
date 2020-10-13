@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wojas/go-tlsconfig"
+	"github.com/PowerDNS/go-tlsconfig"
 	"golang.org/x/sync/errgroup"
 )
 

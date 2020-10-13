@@ -1,4 +1,4 @@
-module github.com/wojas/go-tlsconfig
+module github.com/PowerDNS/go-tlsconfig
 
 go 1.14
 
