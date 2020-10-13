@@ -118,12 +118,12 @@ func (ca *TestCA) createCert(name string, isClient bool) (certPEM, privPEM []byt
 	return certPEM, privPEM, nil
 }
 
-func (ca *TestCA) ServerConfig(name string) (*tlsconfig.Config, error) {
+func (ca *TestCA) ServerConfig(name string) (tlsconfig.Config, error) {
 	certPEM, privPEM, err := ca.createCert(name, false)
 	if err != nil {
-		return nil, err
+		return tlsconfig.Config{}, err
 	}
-	return &tlsconfig.Config{
+	return tlsconfig.Config{
 		CA:                string(ca.CertPEM),
 		Cert:              string(certPEM),
 		Key:               string(privPEM),
@@ -131,12 +131,12 @@ func (ca *TestCA) ServerConfig(name string) (*tlsconfig.Config, error) {
 	}, nil
 }
 
-func (ca *TestCA) ClientConfig(name string) (*tlsconfig.Config, error) {
+func (ca *TestCA) ClientConfig(name string) (tlsconfig.Config, error) {
 	certPEM, privPEM, err := ca.createCert(name, true)
 	if err != nil {
-		return nil, err
+		return tlsconfig.Config{}, err
 	}
-	return &tlsconfig.Config{
+	return tlsconfig.Config{
 		CA:   string(ca.CertPEM),
 		Cert: string(certPEM),
 		Key:  string(privPEM),

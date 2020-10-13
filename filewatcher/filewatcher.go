@@ -13,15 +13,21 @@ import (
 )
 
 type Options struct {
+	Contents []byte // Static contents that never change, for unified handling
 	FilePath string
 	Interval time.Duration
 	OnChange func(contents []byte)
 	Logr     logr.Logger
 }
 
-func New(opt Options) (*Watcher, error) {
-	if opt.FilePath == "" {
-		return nil, fmt.Errorf("no file path provided")
+// New creates and new Watcher and starts the background watch goroutine if needed.
+// The first poll is done immediately and any error there will be immediately
+// returned and not further polling done in this case.
+// The OnChange callback is not called for this first poll.
+// The background goroutine can be cancelled through the passed context.
+func New(ctx context.Context, opt Options) (*Watcher, error) {
+	if opt.FilePath == "" && opt.Contents == nil {
+		return nil, fmt.Errorf("no file path provided and not static contents")
 	}
 	log := opt.Logr
 	if log == nil {
@@ -31,13 +37,23 @@ func New(opt Options) (*Watcher, error) {
 		opt: opt,
 		log: log.WithValues("file", opt.FilePath),
 	}
+	// Return static contents for simpler unified code
+	if opt.FilePath == "" && opt.Contents != nil {
+		w.lastContents = opt.Contents
+		return w, nil
+	}
 	// First time must not return an error
 	if err := w.checkOnce(); err != nil {
 		return nil, err
 	}
+	go func() {
+		_ = w.watch(ctx)
+	}()
 	return w, nil
 }
 
+// Watcher is file watcher that polls a file for changes in the background.
+// For convenience it also support single content loads without a background watcher.
 type Watcher struct {
 	opt Options
 	log logr.Logger
@@ -47,19 +63,21 @@ type Watcher struct {
 	lastErr      error
 }
 
+// Contents returns the current file contents
 func (w *Watcher) Contents() []byte {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.lastContents
 }
 
+// Err returns the last error encountered when polling.
 func (w *Watcher) Err() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.lastErr
 }
 
-func (w *Watcher) Watch(ctx context.Context) error {
+func (w *Watcher) watch(ctx context.Context) error {
 	w.log.V(1).Info("starting watcher")
 	defer w.log.V(1).Info("stopping watcher")
 

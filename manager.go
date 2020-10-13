@@ -15,7 +15,6 @@ import (
 	"github.com/go-logr/logr"
 	logrtesting "github.com/go-logr/logr/testing"
 	"github.com/wojas/go-tlsconfig/filewatcher"
-	"golang.org/x/sync/errgroup"
 )
 
 // Options configure how the Manager works and performs Config validation
@@ -33,7 +32,10 @@ type Options struct {
 	Logr logr.Logger
 }
 
-func NewManager(config Config, options Options) (*Manager, error) {
+// NewManager creates a new Manager.
+// This also starts any needed background worker goroutines. These can be cancelled
+// through the provided context.
+func NewManager(ctx context.Context, config Config, options Options) (*Manager, error) {
 	// Options validation
 	if options.IsServer && options.IsClient {
 		return nil, fmt.Errorf("options: cannot use both IsServer and IsClient")
@@ -50,7 +52,7 @@ func NewManager(config Config, options Options) (*Manager, error) {
 	m := &Manager{
 		config:  config,
 		options: options,
-		log:     log.WithName("dyntls").WithName("manager"), // TODO: let caller decide?
+		log:     log,
 	}
 
 	// Config validation
@@ -59,10 +61,10 @@ func NewManager(config Config, options Options) (*Manager, error) {
 	}
 
 	// Load CAs and certificates if needed
-	if err := m.initCA(); err != nil {
+	if err := m.initCA(ctx); err != nil {
 		return nil, err
 	}
-	if err := m.initCert(); err != nil {
+	if err := m.initCert(ctx); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -71,16 +73,10 @@ func NewManager(config Config, options Options) (*Manager, error) {
 // Manager performs Config validation, certificate loading, and provides
 // convenience methods for using the TLS configuration and automated certificate
 // refreshing.
-// Do not forget to run .RunWorkers() to start any background workers!
 type Manager struct {
 	config  Config
 	options Options
 	log     logr.Logger
-
-	// These are created in NewManager, but need to be started with .RunWorkers()
-	caWatcher   *filewatcher.Watcher
-	certWatcher *filewatcher.Watcher
-	keyWatcher  *filewatcher.Watcher
 
 	// Internal mutable fields
 	mu      sync.Mutex
@@ -89,29 +85,6 @@ type Manager struct {
 	cert    *tls.Certificate
 	certPEM []byte
 	keyPEM  []byte
-}
-
-// RunWorkers runs any background workers. It only returns when those return.
-// This must be run for the Watchers to work as expected.
-// If no workers were started, this will return immediately without error.
-func (m *Manager) RunWorkers(ctx context.Context) error {
-	g, ctx := errgroup.WithContext(ctx)
-	if m.config.WatchCerts {
-		watchers := []*filewatcher.Watcher{
-			m.caWatcher,
-			m.certWatcher,
-			m.keyWatcher,
-		}
-		for _, w := range watchers {
-			if w == nil {
-				continue
-			}
-			g.Go(func() error {
-				return m.caWatcher.Watch(ctx)
-			})
-		}
-	}
-	return g.Wait()
 }
 
 // TLSConfig creates a tls.Config from the current config. This works for both
@@ -228,29 +201,36 @@ func (m *Manager) watcherInterval() time.Duration {
 	return watcherInterval
 }
 
-func (m *Manager) initCA() error {
+// initCA loads any configured custom CA certificates and starts a background
+// watcher to keep track of changes.
+func (m *Manager) initCA(ctx context.Context) error {
 	if !m.config.HasCA() {
 		return nil
 	}
 
-	var err error
-	var caPEM []byte
-	caPEM, m.caWatcher, err = m.initWatcher(
-		m.config.CA, m.config.CAFile, "caWatcher", func(contents []byte) {
+	watcher, err := filewatcher.New(ctx, filewatcher.Options{
+		Contents: []byte(m.config.CA),
+		FilePath: m.config.CAFile,
+		Interval: m.watcherInterval(),
+		Logr:     m.log.WithName("ca-watcher"),
+		OnChange: func(contents []byte) {
 			// Not called for initial load
 			// Ignore any returned errors, they get logged by this function
 			// NOTE: Existing tls.Configs will not see the new CA pool!
 			_ = m.loadCAs(contents)
-		})
+		},
+	})
 	if err != nil {
 		return err
 	}
 
 	// Initial load must succeed
-	return m.loadCAs(caPEM)
+	return m.loadCAs(watcher.Contents())
 }
 
-func (m *Manager) initCert() error {
+// initCA loads any configured custom client/server certificates and starts
+// a background watcher to keep track of changes.
+func (m *Manager) initCert(ctx context.Context) error {
 	if !m.config.HasCertWithKey() {
 		return nil
 	}
@@ -269,54 +249,42 @@ func (m *Manager) initCert() error {
 	}
 
 	// Cert
-	certPEM, m.certWatcher, err = m.initWatcher(m.config.Cert, m.config.CertFile, "certWatcher",
-		func(contents []byte) {
+	certWatcher, err := filewatcher.New(ctx, filewatcher.Options{
+		Contents: []byte(m.config.Cert),
+		FilePath: m.config.CertFile,
+		Interval: m.watcherInterval(),
+		Logr:     m.log.WithName("cert-watcher"),
+		OnChange: func(contents []byte) {
 			certPEM = contents
 			reloadCert()
-		})
+		},
+	})
 	if err != nil {
 		return err
 	}
+	certPEM = certWatcher.Contents()
 
 	// Key
-	keyPEM, m.keyWatcher, err = m.initWatcher(m.config.Key, m.config.KeyFile, "keyWatcher",
-		func(contents []byte) {
+	keyWatcher, err := filewatcher.New(ctx, filewatcher.Options{
+		Contents: []byte(m.config.Key),
+		FilePath: m.config.KeyFile,
+		Interval: m.watcherInterval(),
+		Logr:     m.log.WithName("key-watcher"),
+		OnChange: func(contents []byte) {
 			keyPEM = contents
 			reloadCert()
-		})
+		},
+	})
 	if err != nil {
 		return err
 	}
+	keyPEM = keyWatcher.Contents()
 
 	// Initial load must succeed
 	if err := m.loadCert(certPEM, keyPEM); err != nil {
 		return fmt.Errorf("create X509 keypair: %w", err)
 	}
 	return nil
-}
-
-func (m *Manager) initWatcher(certString, certFile, name string, onChange func([]byte)) (
-	certPEM []byte, watcher *filewatcher.Watcher, err error) {
-
-	if certString != "" {
-		// Simply laod from string
-		return []byte(certString), nil, nil
-	}
-
-	// Load from file
-	// Use a Watcher for this even if we only load it once
-	// This fails if the initial load fails
-	watcher, err = filewatcher.New(filewatcher.Options{
-		FilePath: certFile,
-		Interval: m.watcherInterval(),
-		OnChange: onChange,
-		Logr:     m.log.WithName("name"),
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: load with watcher: %w", name, err)
-	}
-	certPEM = watcher.Contents()
-	return certPEM, watcher, nil
 }
 
 func (m *Manager) loadCAs(data []byte) error {
