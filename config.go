@@ -15,6 +15,10 @@ type Config struct {
 	CAFile string `yaml:"ca_file" json:"ca_file"`
 	CA     string `yaml:"ca" json:"ca"`
 
+	// AddSystemCAPool adds the system CA pool if private CAs are enabled, when set.
+	// By default we do not load system CAs when a private CA cert was loaded.
+	AddSystemCAPool bool `yaml:"add_system_ca_pool" json:"add_system_ca_pool"`
+
 	// These are required for the server and optional for clients.
 	// They must be in PEM format.
 	CertFile string `yaml:"cert_file" json:"cert_file"`

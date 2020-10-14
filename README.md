@@ -12,6 +12,9 @@ Features:
 - A `Manager` can generate a corresponding `tls.Config`.
 - On-disk certificates can be automatically reloaded without downtime.
 
+The main idea behind it is that you can integrate it in your code once and then
+automatically gain support for any new certificate management features in the future.
+
 ## YAML configuration examples
 
 Note that depending on the application, the configuration can also be in JSON or another format.
@@ -59,6 +62,14 @@ To use custom CA certs to verify the connection:
 ```yaml
 tls:
   ca_file: path/to/ca.pem
+```
+
+To allow both custom CA certs and system CA certs to verify the connection:
+
+```yaml
+tls:
+  ca_file: path/to/ca.pem
+  add_system_ca_pool: true
 ```
 
 To use a client certificate:
@@ -144,7 +155,27 @@ client := &http.Client{Transport: transport}
 resp, err := client.Get("https://some.example/")
 ```
 
+Or you can use this convenience method for a more opinionated HTTP client with
+various timeouts set, but do read the source code for this method so that you
+understand the implications:
+
+```go
+manager, err := tlsconfig.NewManager(ctx, config.Client.TLS, tlsconfig.Options{
+	IsClient: true,
+})
+
+client, err := manager.HTTPClient()
+
+resp, err := client.Get("https://some.example/")
+```
+
 The `testca/testca_test.go` file contains an example that uses client certificates.
+
+The `Manager` performs certificate reloads in the background. To keep track of
+what it is doing and see error messages, you can provide a
+[`logr.Logger`](https://github.com/go-logr/logr) interface in `Options.Logr`.
+The [genericr](https://github.com/wojas/genericr) module makes it easy to
+use custom logging logic here.
 
 ## Stability
 

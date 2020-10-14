@@ -290,7 +290,17 @@ func (m *Manager) initCert(ctx context.Context) error {
 func (m *Manager) loadCAs(data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	caCertPool := x509.NewCertPool()
+	var caCertPool *x509.CertPool
+	if m.config.AddSystemCAPool {
+		var err error
+		if caCertPool, err = x509.SystemCertPool(); err != nil {
+			// We do not consider this an error to stay consistent with the
+			// default operation if no custom CA was provided.
+			m.log.V(1).Info("loadCAs: failed to load system CA pool")
+		}
+	} else {
+		caCertPool = x509.NewCertPool()
+	}
 	if !caCertPool.AppendCertsFromPEM(data) {
 		m.log.V(1).Info("loadCAs: failed to load cert", "cert", string(data))
 		return fmt.Errorf("loadCAs: failed to load cert")
