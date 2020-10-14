@@ -150,6 +150,7 @@ tlsConfig, err := manager.TLSConfig()
 
 transport := &http.Transport{
 	TLSClientConfig: tlsConfig,
+    ForceAttemptHTTP2: true, // not attempted by default when TLSClientConfig is set
 }
 client := &http.Client{Transport: transport}
 resp, err := client.Get("https://some.example/")

@@ -145,5 +145,5 @@ func TestTestCA_client_server(t *testing.T) {
 	}(); err != nil {
 		t.Fatal(err)
 	}
-
+	g.Wait()
 }

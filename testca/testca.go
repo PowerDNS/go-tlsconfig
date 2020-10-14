@@ -31,7 +31,7 @@ func New(opts Options) (*TestCA, error) {
 
 	caPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("ca: generate: %w", err)
+		return nil, fmt.Errorf("ca: generate: %v", err)
 	}
 	// Generate a self-signed certificate
 	caTmpl := &x509.Certificate{
@@ -47,12 +47,12 @@ func New(opts Options) (*TestCA, error) {
 	}
 	caCertDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, caPriv.Public(), caPriv)
 	if err != nil {
-		return nil, fmt.Errorf("ca: create: %w", err)
+		return nil, fmt.Errorf("ca: create: %v", err)
 	}
 
 	caPrivDER, err := x509.MarshalECPrivateKey(caPriv)
 	if err != nil {
-		return nil, fmt.Errorf("ca: marshal: %w", err)
+		return nil, fmt.Errorf("ca: marshal: %v", err)
 	}
 	// PEM encode the certificate and private key
 	caCertPEM := pemEncode(caCertDER, "CERTIFICATE")

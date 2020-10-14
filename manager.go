@@ -57,7 +57,7 @@ func NewManager(ctx context.Context, config Config, options Options) (*Manager, 
 
 	// Config validation
 	if err := m.validateConfig(); err != nil {
-		return nil, fmt.Errorf("config: %w", err)
+		return nil, fmt.Errorf("config: %v", err)
 	}
 
 	// Load CAs and certificates if needed
@@ -163,21 +163,22 @@ func (m *Manager) HTTPClient() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 10 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+		TLSClientConfig:       tlsConfig,
+	}
+	updateHTTPTransport(transport) // Go version dependent things
 	httpClient := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: 10 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 10 * time.Second,
-			TLSClientConfig:       tlsConfig,
-		},
-		Timeout: 15 * time.Minute, // includes reading response body!
+		Transport: transport,
+		Timeout:   15 * time.Minute, // includes reading response body!
 	}
 	return httpClient, nil
 }
@@ -282,7 +283,7 @@ func (m *Manager) initCert(ctx context.Context) error {
 
 	// Initial load must succeed
 	if err := m.loadCert(certPEM, keyPEM); err != nil {
-		return fmt.Errorf("create X509 keypair: %w", err)
+		return fmt.Errorf("create X509 keypair: %v", err)
 	}
 	return nil
 }
@@ -315,7 +316,7 @@ func (m *Manager) loadCert(certPEM, keyPEM []byte) error {
 	defer m.mu.Unlock()
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return fmt.Errorf("create X509 keypair: %w", err)
+		return fmt.Errorf("create X509 keypair: %v", err)
 	}
 	m.certPEM = certPEM
 	m.keyPEM = keyPEM
