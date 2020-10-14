@@ -1,7 +1,7 @@
 # Go TLS configuration module
 
 [![Go Doc](https://godoc.org/github.com/PowerDNS/go-tlsconfig?status.svg)](http://godoc.org/github.com/PowerDNS/go-tlsconfig)
-[![Build Status](https://travis-ci.org/PowerDNS/go-tlsconfig.svg?branch=master)](https://travis-ci.org/PowerDNS/go-tlsconfig)
+[![Build Status](https://travis-ci.com/PowerDNS/go-tlsconfig.svg?branch=master)](https://travis-ci.com/PowerDNS/go-tlsconfig)
 
 This module eases configuration of TLS for clients and servers written in Go.
 
