@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/PowerDNS/go-tlsconfig"
+	"github.com/go-logr/logr/testr"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -69,7 +70,7 @@ func TestTestCA_client_server(t *testing.T) {
 		serverManager, err := tlsconfig.NewManager(ctx, serverConfig, tlsconfig.Options{
 			IsServer:          true,
 			RequireClientCert: true,
-			Logr:              nil,
+			Logr:              testr.New(t),
 		})
 		if err != nil {
 			return err
@@ -112,7 +113,7 @@ func TestTestCA_client_server(t *testing.T) {
 		clientManager, err := tlsconfig.NewManager(ctx, clientConfig, tlsconfig.Options{
 			IsClient:          true,
 			RequireClientCert: true,
-			Logr:              nil,
+			Logr:              testr.New(t),
 		})
 		if err != nil {
 			return err
