@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	logrtesting "github.com/go-logr/logr/testing"
 )
 
 type Options struct {
@@ -30,8 +29,14 @@ func New(ctx context.Context, opt Options) (*Watcher, error) {
 		return nil, fmt.Errorf("no file path provided and not static contents")
 	}
 	log := opt.Logr
-	if log == nil {
-		log = logrtesting.NullLogger{}
+	// TODO: Since v1 this is a concrete type and we can no longer compare with
+	//       nil. Unfortunately, there is no clean way to check this against a
+	//       zero type either and we do not want to change the signature of
+	//       the option if not needed, so instead we check if the LogSink is nil
+	//       to determine if it is uninitialized.
+	//       See https://github.com/go-logr/logr/issues/152
+	if log.GetSink() == nil {
+		log = logr.Discard()
 	}
 	w := &Watcher{
 		opt: opt,
@@ -53,7 +58,7 @@ func New(ctx context.Context, opt Options) (*Watcher, error) {
 }
 
 // Watcher is file watcher that polls a file for changes in the background.
-// For convenience it also support single content loads without a background watcher.
+// For convenience, it also supports single content loads without a background watcher.
 type Watcher struct {
 	opt Options
 	log logr.Logger

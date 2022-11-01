@@ -14,7 +14,6 @@ import (
 
 	"github.com/PowerDNS/go-tlsconfig/filewatcher"
 	"github.com/go-logr/logr"
-	logrtesting "github.com/go-logr/logr/testing"
 )
 
 // Options configure how the Manager works and performs Config validation
@@ -44,8 +43,14 @@ func NewManager(ctx context.Context, config Config, options Options) (*Manager, 
 		return nil, fmt.Errorf("options: one of IsServer and IsClient is required")
 	}
 	log := options.Logr
-	if log == nil {
-		log = logrtesting.NullLogger{}
+	// TODO: Since v1 this is a concrete type and we can no longer compare with
+	//       nil. Unfortunately, there is no clean way to check this against a
+	//       zero type either and we do not want to change the signature of
+	//       the option if not needed, so instead we check if the LogSink is nil
+	//       to determine if it is uninitialized.
+	//       See https://github.com/go-logr/logr/issues/152
+	if log.GetSink() == nil {
+		log = logr.Discard()
 	}
 
 	// Create a Manager
