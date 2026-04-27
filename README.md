@@ -11,6 +11,7 @@ Features:
 - It can be used for both clients and servers.
 - A `Manager` can generate a corresponding `tls.Config`.
 - On-disk certificates can be automatically reloaded without downtime.
+- Includes optional `ProxyConfig` struct.
 
 The main idea behind it is that you can integrate it in your code once and then
 automatically gain support for any new certificate management features in the future.
@@ -106,6 +107,16 @@ Note that there is no way to do automatic reloading this way.
 The `insecure_key_log_file` option can be set to a log file path for the use of tools like Wireshark to decode encrypted traffic in development.
 See [this Mozilla page](https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format) for more information. 
 
+### Proxy configuration
+
+The optional `proxyconfig.ProxyConfig` helper can be used for proxy settings:
+
+```yaml
+proxy:
+  url: http://user:password@localhost:8080
+```
+
+When marshaled back to YAML or JSON, user info in the URL is masked.
 
 ## Usage in Go code
 
@@ -121,6 +132,16 @@ type MyConfig struct {
 
 type Server struct {
 	TLS tlsconfig.Config `yaml:"tls"`
+}
+```
+
+For proxy settings:
+
+```go
+import "github.com/PowerDNS/go-tlsconfig/proxyconfig"
+
+type Client struct {
+	Proxy proxyconfig.ProxyConfig `yaml:"proxy"`
 }
 ```
 
@@ -183,5 +204,4 @@ use custom logging logic here.
 At this point we do not guarantee any API and config file format stability between versions. If you want to use it in your own project,
 pin it at a speciifc version. Once we are confident that our approach is sane, we will release a 1.0.0 version that will have these
 guarantees.
-
 
