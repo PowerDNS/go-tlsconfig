@@ -3,7 +3,10 @@ package proxyconfig
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/url"
+	"strings"
 )
 
 type ProxyConfig struct {
@@ -21,6 +24,26 @@ func (p ProxyConfig) MarshalJSON() ([]byte, error) {
 	type Alias ProxyConfig
 	p.URL = maskProxyUserInfo(p.URL)
 	return json.Marshal((Alias)(p))
+}
+
+func (p ProxyConfig) Check() error {
+	if p.URL == "" {
+		return nil
+	}
+
+	parsedURL, err := url.Parse(p.URL)
+	if err != nil {
+		return fmt.Errorf("invalid proxy url")
+	}
+	if parsedURL.Hostname() == "" {
+		return errors.New("invalid proxy url, missing hostname")
+	}
+
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "socks5" && scheme != "socks5h" {
+		return errors.New("invalid proxy url, expected <scheme>://<host> with scheme http, https, socks5 or socks5h")
+	}
+	return nil
 }
 
 func maskProxyUserInfo(proxyUrl string) string {
